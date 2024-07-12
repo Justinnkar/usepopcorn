@@ -77,42 +77,50 @@ export default function App() {
     setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
   }
 
-  useEffect(
-    function () {
-      async function fetchMovies() {
-        try {
-          setIsLoading(true);
-          setError("");
+  useEffect(() => {
+    const controller = new AbortController();
 
-          const res = await fetch(
-            `http://www.omdbapi.com/?i=tt3896198&apikey=${KEY}&s=${query}`
-          );
+    async function fetchMovies() {
+      try {
+        setIsLoading(true);
+        setError("");
 
-          if (!res.ok)
-            throw new Error("Something went wrong with fetching movies");
+        const res = await fetch(
+          `http://www.omdbapi.com/?i=tt3896198&apikey=${KEY}&s=${query}`,
+          { signal: controller.signal }
+        );
 
-          const data = await res.json();
-          if (data.Response === "False") throw new Error("Movie not found");
+        if (!res.ok)
+          throw new Error("Something went wrong with fetching movies");
 
-          setMovies(data.Search);
-        } catch (err) {
+        const data = await res.json();
+        if (data.Response === "False") throw new Error("Movie not found");
+
+        setMovies(data.Search);
+      } catch (err) {
+        if (err.name === "AbortError") {
+          console.log("Fetch aborted");
+        } else {
           console.log(err.message);
           setError(err.message);
-        } finally {
-          setIsLoading(false);
         }
+      } finally {
+        setIsLoading(false);
       }
+    }
 
-      if (!query.length) {
-        setMovies([]);
-        setError("");
-        return;
-      }
+    if (!query.length) {
+      setMovies([]);
+      setError("");
+      return;
+    }
 
-      fetchMovies();
-    },
-    [query]
-  );
+    fetchMovies();
+
+    return () => {
+      controller.abort();
+    };
+  }, [query]);
 
   return (
     <>
@@ -326,6 +334,10 @@ function MovieDetails({ selectedId, onCloseMovie, onAddWatched, watched }) {
     function () {
       if (!title) return;
       document.title = `Movie | ${title}`;
+
+      return function () {
+        document.title = "usePopcorn";
+      };
     },
     [title]
   );
